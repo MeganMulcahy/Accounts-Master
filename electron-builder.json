@@ -1,0 +1,30 @@
+{
+  "appId": "com.privacyfirst.accountdiscovery",
+  "productName": "Privacy-First Account Discovery",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.utilities",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["arm64"]
+      }
+    ]
+  },
+  "dmg": {
+    "title": "${productName}-${version}",
+    "sign": false
+  },
+  "win": {
+    "target": "nsis"
+  },
+  "linux": {
+    "target": "AppImage"
+  }
+}

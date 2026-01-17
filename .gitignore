@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+.env
+.env.local
+*.local
+
+# Electron
+out/
+.electron-builder/
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,35 @@
+.privacy-banner {
+  background: #e3f2fd;
+  border-bottom: 2px solid #2196f3;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.privacy-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.privacy-banner strong {
+  color: #1976d2;
+}
+
+.privacy-banner-separator {
+  color: #90caf9;
+}
+
+@media (max-width: 768px) {
+  .privacy-banner-content {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .privacy-banner-separator {
+    display: none;
+  }
+}

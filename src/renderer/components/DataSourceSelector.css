@@ -1,0 +1,103 @@
+.data-source-selector {
+  margin-bottom: 2rem;
+}
+
+.data-source-selector h2 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.account-input-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.account-input-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.account-email-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.account-input-section small {
+  display: block;
+  color: #666;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.data-source-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.data-source-section h3 {
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.data-source-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-source {
+  padding: 0.875rem 1.25rem;
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: #333;
+}
+
+.btn-source:hover:not(:disabled) {
+  border-color: #007bff;
+  background: #f0f8ff;
+}
+
+.btn-source:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-oauth {
+  border-color: #28a745;
+}
+
+.btn-oauth:hover:not(:disabled) {
+  border-color: #218838;
+  background: #f0fff4;
+}
+
+.active-source-handler {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #ddd;
+}
+
+@media (max-width: 768px) {
+  .data-source-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
