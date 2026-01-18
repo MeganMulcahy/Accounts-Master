@@ -3,28 +3,54 @@
  * Provides links to review OAuth apps and allows pasting app names.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useMasterList } from '../contexts/MasterListContext';
-import { DiscoveredAccount, DataSource } from '@shared/types';
+import { DiscoveredAccount, DataSource } from '../../shared/types';
 import { ExternalLink } from '../components/ExternalLink';
+import { AccountTable } from '../components/AccountTable';
+import { parseOAuthText } from '../utils/oauthTextParser';
 import './PageCommon.css';
 
 interface ConnectedAppsPageProps {
   onNavigate: (page: string) => void;
 }
 
+interface ImportedItem {
+  service: string;
+  email: string;
+  source: string;
+  importMethod: string;
+}
+
 const OAUTH_LINKS = [
   { name: 'Google', url: 'https://myaccount.google.com/permissions', source: DataSource.GMAIL_OAUTH },
   { name: 'Microsoft', url: 'https://account.microsoft.com/account/privacy', source: DataSource.MICROSOFT_OAUTH },
   { name: 'Facebook', url: 'https://www.facebook.com/settings?tab=applications', source: DataSource.FACEBOOK_OAUTH },
-  { name: 'GitHub', url: 'https://github.com/settings/applications', source: DataSource.GMAIL_OAUTH },
+  { name: 'GitHub', url: 'https://github.com/settings/applications', source: DataSource.GITHUB_OAUTH },
+];
+
+// OAuth source options
+const OAUTH_SOURCES = [
+  { value: DataSource.GMAIL_OAUTH, label: 'Google' },
+  { value: DataSource.APPLE_OAUTH, label: 'Apple' },
+  { value: DataSource.MICROSOFT_OAUTH, label: 'Microsoft' },
+  { value: DataSource.FACEBOOK_OAUTH, label: 'Facebook' },
+  { value: DataSource.GITHUB_OAUTH, label: 'GitHub' },
+  { value: DataSource.OTHER_OAUTH, label: 'Other' },
 ];
 
 export function ConnectedAppsPage({ onNavigate }: ConnectedAppsPageProps) {
-  const { addAccounts } = useMasterList();
+  const { addAccounts, accounts } = useMasterList();
   const [appNames, setAppNames] = useState('');
   const [selectedSource, setSelectedSource] = useState<DataSource>(DataSource.GMAIL_OAUTH);
+  const [accountEmail, setAccountEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [importedItems, setImportedItems] = useState<ImportedItem[]>([]);
+
+  const getSourceLabel = (source: DataSource): string => {
+    const option = OAUTH_SOURCES.find(opt => opt.value === source);
+    return option ? `${option.label} OAuth` : 'OAuth';
+  };
 
   const handleAppNamesSubmit = () => {
     if (!appNames.trim()) {
@@ -32,32 +58,48 @@ export function ConnectedAppsPage({ onNavigate }: ConnectedAppsPageProps) {
       return;
     }
 
-    try {
-      // Parse app names - one per line or comma-separated
-      const names = appNames
-        .split(/[,\n]/)
-        .map(name => name.trim())
-        .filter(name => name.length > 0);
+    if (!accountEmail.trim()) {
+      setError('Please enter the email address associated with these OAuth apps');
+      return;
+    }
 
-      if (names.length === 0) {
-        setError('No valid app names found');
+    try {
+      // Parse app names using the improved parser that filters out expired/dates/status
+      const serviceNames = parseOAuthText(appNames);
+
+      if (serviceNames.length === 0) {
+        setError('No valid service names found. Please check that you pasted app names and not status messages or dates.');
         return;
       }
 
-      // Create discovered accounts from app names
+      const sourceLabel = getSourceLabel(selectedSource);
+      const importMethod = 'Copy/Paste';
+
+      // Create discovered accounts from parsed service names
       // OAuth apps have no username/password - they use OAuth authentication
-      const newAccounts: DiscoveredAccount[] = names.map((name, index) => ({
+      const newAccounts: DiscoveredAccount[] = serviceNames.map((name, index) => ({
         id: `oauth-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
         service: name,
-        accountEmail: '', // Empty email for OAuth apps
-        source: selectedSource, // Use selected OAuth provider source
+        accountEmail: accountEmail.trim(),
+        source: selectedSource,
         discoveredAt: new Date(),
         metadata: {
-          parsedFrom: 'OAuth App List',
+          source: sourceLabel,
+          email: accountEmail.trim(),
+          importMethod: importMethod,
           username: '', // Empty username for OAuth apps
           password: '', // Empty password for OAuth apps (uses OAuth instead)
         },
       }));
+
+      // Add to per-page import history
+      const newImportedItems: ImportedItem[] = serviceNames.map(name => ({
+        service: name,
+        email: accountEmail.trim(),
+        source: sourceLabel,
+        importMethod: importMethod,
+      }));
+      setImportedItems(prev => [...prev, ...newImportedItems]);
 
       try {
         addAccounts(newAccounts);
@@ -159,20 +201,42 @@ export function ConnectedAppsPage({ onNavigate }: ConnectedAppsPageProps) {
               className="filter-select"
               style={{ width: '100%', maxWidth: '400px' }}
             >
-              <option value={DataSource.GMAIL_OAUTH}>Log in with Google</option>
-              <option value={DataSource.MICROSOFT_OAUTH}>Log in with Microsoft</option>
-              <option value={DataSource.FACEBOOK_OAUTH}>Log in with Facebook</option>
-              <option value={DataSource.TWITTER_OAUTH}>Log in with Twitter/X</option>
+              {OAUTH_SOURCES.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label htmlFor="oauth-email" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              Email Address:
+            </label>
+            <input
+              id="oauth-email"
+              type="email"
+              value={accountEmail}
+              onChange={(e) => setAccountEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="filter-input"
+              style={{ width: '100%', maxWidth: '400px' }}
+            />
             <p className="info-note" style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
-              Note: OAuth apps use authentication tokens, so username and password fields will be empty.
+              Enter the email address associated with these OAuth connected apps.
             </p>
           </div>
           
           <textarea
             value={appNames}
             onChange={(e) => setAppNames(e.target.value)}
-            placeholder={`Example:
+            placeholder={`Paste app names here. The parser will automatically filter out:
+- Expired status messages
+- Dates and timelines
+- Usage information
+- Status indicators
+
+Example:
 Netflix
 Spotify
 Dropbox
@@ -182,7 +246,7 @@ Slack, Zoom, Microsoft Teams`}
           />
           <button
             onClick={handleAppNamesSubmit}
-            disabled={!appNames.trim()}
+            disabled={!appNames.trim() || !accountEmail.trim()}
             className="btn btn-primary"
           >
             Add Apps to Master List
@@ -190,11 +254,61 @@ Slack, Zoom, Microsoft Teams`}
         </div>
       </div>
 
+      {/* Per-Page Import History */}
+      {importedItems.length > 0 && (
+        <div className="import-history-section" style={{ marginTop: '2rem' }}>
+          <h2>Items Imported From This Page</h2>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #ddd' }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Service Name</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Email</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Source</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Import Method</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importedItems.map((item, index) => (
+                  <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '0.75rem' }}>{item.service}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.email}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.source}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.importMethod}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+              Total: {importedItems.length} item{importedItems.length !== 1 ? 's' : ''} imported from this page
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="error-banner">
           <strong>Error:</strong> {error}
         </div>
       )}
+
+      {/* Master List Filtered by OAuth Sources */}
+      <div className="master-list-section" style={{ marginTop: '2rem', width: '100%', maxWidth: '100%' }}>
+        <h2>Accounts from OAuth Connectors</h2>
+        <AccountTable 
+          accounts={accounts.filter(acc => 
+            acc.allSources.some((s: DataSource) => 
+              s === DataSource.GMAIL_OAUTH ||
+              s === DataSource.APPLE_OAUTH ||
+              s === DataSource.MICROSOFT_OAUTH ||
+              s === DataSource.FACEBOOK_OAUTH ||
+              s === DataSource.GITHUB_OAUTH ||
+              s === DataSource.OTHER_OAUTH ||
+              s === DataSource.TWITTER_OAUTH
+            )
+          )} 
+        />
+      </div>
 
       <div className="privacy-note">
         <strong>Privacy:</strong> Only app names are stored. No authentication tokens or sensitive data is collected.

@@ -11,6 +11,9 @@ export enum DataSource {
   MICROSOFT_OAUTH = 'Microsoft (OAuth)',
   FACEBOOK_OAUTH = 'Facebook (OAuth)',
   TWITTER_OAUTH = 'Twitter/X (OAuth)',
+  APPLE_OAUTH = 'Apple (OAuth)',
+  GITHUB_OAUTH = 'GitHub (OAuth)',
+  OTHER_OAUTH = 'Other (OAuth)',
 }
 
 export interface DiscoveredAccount {

@@ -501,9 +501,20 @@ function mergeAccountsWithLinks(
   existing: DeduplicatedAccount,
   incoming: DiscoveredAccount | DeduplicatedAccount
 ): DeduplicatedAccount {
-  // Merge sources
+  // Merge sources - keep ALL sources from both accounts
   const mergedSources = [...existing.allSources];
-  const incomingSource = 'allSources' in incoming ? incoming.source : incoming.source;
+  
+  // Add sources from incoming account
+  if ('allSources' in incoming && incoming.allSources) {
+    for (const source of incoming.allSources) {
+      if (!mergedSources.includes(source)) {
+        mergedSources.push(source);
+      }
+    }
+  }
+  
+  // Also add the direct source if not already in allSources
+  const incomingSource = incoming.source;
   if (!mergedSources.includes(incomingSource)) {
     mergedSources.push(incomingSource);
   }

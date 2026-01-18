@@ -2,8 +2,9 @@
 
 .page-container {
   padding: 20px;
-  max-width: 1000px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 
 /* Page Headers - Consistent across all pages */
@@ -381,4 +382,16 @@ button.oauth-link-btn-vertical:hover {
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.master-list-section {
+  margin-top: 2rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.master-list-section .account-table-container {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
 }

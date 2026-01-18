@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useMasterList } from '../contexts/MasterListContext';
 import { DataSource, DiscoveredAccount } from '@shared/types';
 import { ExternalLink } from '../components/ExternalLink';
+import { AccountTable } from '../components/AccountTable';
 import './PageCommon.css';
 
 interface PasswordManagerPageProps {
@@ -14,12 +15,22 @@ interface PasswordManagerPageProps {
   source?: 'chrome' | 'keychain'; // Optional for backward compatibility
 }
 
+interface ImportedItem {
+  service: string;
+  email: string;
+  source: string;
+  importMethod: string;
+}
+
 export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageProps) {
-  const { addAccounts } = useMasterList();
+  const { addAccounts, accounts } = useMasterList();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasteContent, setPasteContent] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [accountEmail, setAccountEmail] = useState('');
+  const [selectedSource, setSelectedSource] = useState<DataSource>(DataSource.CHROME_CSV);
+  const [importedItems, setImportedItems] = useState<ImportedItem[]>([]);
 
   /**
    * Import accounts from CSV or Excel file
@@ -41,16 +52,66 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
         return;
       }
 
+      const sourceLabel = selectedSource === DataSource.CHROME_CSV 
+        ? 'Chrome CSV Import' 
+        : selectedSource === DataSource.APPLE_EXPORT 
+        ? 'Apple Keychain Import' 
+        : 'Password Manager Import';
+      const importMethod = result.format === 'excel' ? 'File Upload (Excel)' : 'File Upload (CSV)';
+
       // Handle Excel files
       if (result.format === 'excel' && result.fileData) {
         const { parseExcelImport } = await import('../utils/export');
         const importedAccounts = parseExcelImport(result.fileData);
-        addAccounts(importedAccounts);
-        alert(`Successfully imported ${importedAccounts.length} accounts from Excel file!`);
+        
+        // Add metadata: source, email, import method
+        const accountsWithMetadata = importedAccounts.map(acc => ({
+          ...acc,
+          accountEmail: acc.accountEmail || accountEmail.trim(),
+          metadata: {
+            ...acc.metadata,
+            source: sourceLabel,
+            email: acc.accountEmail || accountEmail.trim(),
+            importMethod: importMethod,
+          },
+        }));
+
+        // Add to per-page import history
+        const newImportedItems: ImportedItem[] = accountsWithMetadata.map(acc => ({
+          service: acc.service,
+          email: acc.accountEmail,
+          source: sourceLabel,
+          importMethod: importMethod,
+        }));
+        setImportedItems(prev => [...prev, ...newImportedItems]);
+
+        addAccounts(accountsWithMetadata);
+        alert(`Successfully imported ${accountsWithMetadata.length} accounts from Excel file!`);
       } else if (result.accounts && result.accounts.length > 0) {
         // Handle CSV files (already parsed in main process)
-        addAccounts(result.accounts);
-        alert(`Successfully imported ${result.accounts.length} accounts from CSV file!`);
+        // Add metadata: source, email, import method
+        const accountsWithMetadata = result.accounts.map(acc => ({
+          ...acc,
+          accountEmail: acc.accountEmail || accountEmail.trim(),
+          metadata: {
+            ...acc.metadata,
+            source: sourceLabel,
+            email: acc.accountEmail || accountEmail.trim(),
+            importMethod: importMethod,
+          },
+        }));
+
+        // Add to per-page import history
+        const newImportedItems: ImportedItem[] = accountsWithMetadata.map(acc => ({
+          service: acc.service,
+          email: acc.accountEmail,
+          source: sourceLabel,
+          importMethod: importMethod,
+        }));
+        setImportedItems(prev => [...prev, ...newImportedItems]);
+
+        addAccounts(accountsWithMetadata);
+        alert(`Successfully imported ${accountsWithMetadata.length} accounts from CSV file!`);
       } else {
         setError('No accounts found in the imported file');
       }
@@ -69,22 +130,24 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
       return;
     }
 
+    if (!accountEmail.trim()) {
+      setError('Please enter the email address associated with these accounts');
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
 
-      // For now, try to parse as CSV
-      // In a real implementation, you'd parse the pasted content to extract:
-      // - Account/Service name
-      // - Email associated with provider
-      // - Email account associated with account found
-      // - Username
-      // - Password (if included, though we won't store it)
-      // - etc.
-
-      // Simple CSV parsing for now
+      // Parse as CSV
       const lines = pasteContent.split('\n').filter(line => line.trim());
       const accounts: DiscoveredAccount[] = [];
+      const sourceLabel = selectedSource === DataSource.CHROME_CSV 
+        ? 'Chrome CSV Import' 
+        : selectedSource === DataSource.APPLE_EXPORT 
+        ? 'Apple Keychain Import' 
+        : 'Password Manager Import';
+      const importMethod = 'Copy/Paste';
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -93,24 +156,35 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
         // Try to parse CSV line
         const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
         
-        if (parts.length >= 2) {
+        if (parts.length >= 1) {
           const service = parts[0] || 'Unknown';
-          const email = parts[1] || ''; // Extract email from pasted content if available
+          const email = parts[1] || accountEmail.trim(); // Extract email from pasted content if available
 
           accounts.push({
             id: `pasted-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
             service: service.substring(0, 200),
-            accountEmail: email.substring(0, 254),
-            source: DataSource.CHROME_CSV,
+            accountEmail: email.substring(0, 254) || accountEmail.trim(),
+            source: selectedSource,
             discoveredAt: new Date(),
             metadata: {
-              pastedContent: 'Yes',
+              source: sourceLabel,
+              email: email.substring(0, 254) || accountEmail.trim(),
+              importMethod: importMethod,
             },
           });
         }
       }
 
       if (accounts.length > 0) {
+        // Add to per-page import history
+        const newImportedItems: ImportedItem[] = accounts.map(acc => ({
+          service: acc.service,
+          email: acc.accountEmail,
+          source: sourceLabel,
+          importMethod: importMethod,
+        }));
+        setImportedItems(prev => [...prev, ...newImportedItems]);
+
         try {
           addAccounts(accounts);
           alert(`Successfully added ${accounts.length} accounts from pasted content!`);
@@ -136,16 +210,46 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
       setIsLoading(true);
       setError(null);
 
+      if (!accountEmail.trim() && dataSource === DataSource.APPLE_EXPORT) {
+        setError('Please enter the email address associated with this Apple Keychain export');
+        setIsLoading(false);
+        return;
+      }
+
       if (window.electronAPI) {
-        // Use empty string for accountEmail - it will be derived from the file
-        const result = await window.electronAPI.selectAndParseFile(dataSource, '');
+        const emailToUse = accountEmail.trim() || '';
+        const result = await window.electronAPI.selectAndParseFile(dataSource, emailToUse);
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
         } else {
+          const sourceLabel = dataSource === DataSource.APPLE_EXPORT ? 'Apple Keychain Import' : 'Chrome CSV Import';
+          const importMethod = 'File Upload';
+          
+          // Add metadata: source, email, import method
+          const accountsWithMetadata = result.accounts.map(acc => ({
+            ...acc,
+            accountEmail: acc.accountEmail || emailToUse,
+            metadata: {
+              ...acc.metadata,
+              source: sourceLabel,
+              email: acc.accountEmail || emailToUse,
+              importMethod: importMethod,
+            },
+          }));
+
+          // Add to per-page import history
+          const newImportedItems: ImportedItem[] = accountsWithMetadata.map(acc => ({
+            service: acc.service,
+            email: acc.accountEmail,
+            source: sourceLabel,
+            importMethod: importMethod,
+          }));
+          setImportedItems(prev => [...prev, ...newImportedItems]);
+
           try {
-            addAccounts(result.accounts);
-            alert(`Successfully added ${result.accounts.length} accounts!`);
+            addAccounts(accountsWithMetadata);
+            alert(`Successfully added ${accountsWithMetadata.length} accounts!`);
           } catch (addError) {
             const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
             console.error('Error adding accounts:', addError);
@@ -249,6 +353,39 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
         <h2>Import or Paste Accounts</h2>
         <p>You can paste: account, email associated with provider, email account associated with account found, username, password, etc.</p>
 
+        <div className="form-group" style={{ marginBottom: '1rem' }}>
+          <label htmlFor="password-manager-source" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Password Manager Source:
+          </label>
+          <select
+            id="password-manager-source"
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value as DataSource)}
+            className="filter-select"
+            style={{ width: '100%', maxWidth: '400px' }}
+          >
+            <option value={DataSource.CHROME_CSV}>Chrome</option>
+            <option value={DataSource.APPLE_EXPORT}>Apple Keychain</option>
+            <option value={DataSource.OTHER_OAUTH}>Other</option>
+          </select>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: '1rem' }}>
+          <label htmlFor="password-manager-email" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Your Email Address (for this import):
+          </label>
+          <input
+            type="email"
+            id="password-manager-email"
+            value={accountEmail}
+            onChange={(e) => setAccountEmail(e.target.value)}
+            placeholder="e.g., yourname@example.com"
+            className="filter-input"
+            style={{ width: '100%', maxWidth: '400px' }}
+            required
+          />
+        </div>
+
         <div className="upload-section">
           <h3>Option 1: Import Excel or CSV File</h3>
           <button
@@ -277,7 +414,7 @@ Spotify, user@example.com, username, password`}
           />
           <button
             onClick={handlePasteSubmit}
-            disabled={isLoading || !pasteContent.trim()}
+            disabled={isLoading || !pasteContent.trim() || !accountEmail.trim()}
             className="btn btn-primary"
           >
             {isLoading ? 'Processing...' : 'Parse Pasted Content'}
@@ -285,11 +422,52 @@ Spotify, user@example.com, username, password`}
         </div>
       </div>
 
+      {/* Per-Page Import History */}
+      {importedItems.length > 0 && (
+        <div className="import-history-section" style={{ marginTop: '2rem' }}>
+          <h2>Items Imported From This Page</h2>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #ddd' }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Service Name</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Email</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Source</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Import Method</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importedItems.map((item, index) => (
+                  <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '0.75rem' }}>{item.service}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.email}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.source}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.importMethod}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+              Total: {importedItems.length} item{importedItems.length !== 1 ? 's' : ''} imported from this page
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="error-banner">
           <strong>Error:</strong> {error}
         </div>
       )}
+
+      {/* Master List Filtered by Source */}
+      <div className="master-list-section" style={{ marginTop: '2rem' }}>
+        <h2>Accounts from Password Managers</h2>
+        <AccountTable 
+          accounts={accounts} 
+          forceSourceFilter={DataSource.CHROME_CSV} 
+        />
+      </div>
 
       <div className="privacy-note">
         <strong>Privacy:</strong> All processing happens locally. Your passwords are never sent to external servers.

@@ -18,13 +18,13 @@ interface AccountTableProps {
 type SortField = 'service' | 'accountEmail' | 'username' | 'password' | 'passwordStrength';
 type SortDirection = 'asc' | 'desc';
 
-export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
+export const AccountTable: React.FC<AccountTableProps> = ({ accounts, forceSourceFilter }) => {
   const { removeAccounts, updateAccountLinks } = useMasterList();
   const [sortField, setSortField] = useState<SortField>('service');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterService, setFilterService] = useState('');
   const [filterAccount, setFilterAccount] = useState('');
-  const [filterSource, setFilterSource] = useState<DataSource | ''>('');
+  const [filterSource, setFilterSource] = useState<DataSource | ''>(forceSourceFilter || '');
   const [filterPasswordStrength, setFilterPasswordStrength] = useState<'weak' | 'moderate' | 'strong' | ''>('');
   const [filterPasswordReused, setFilterPasswordReused] = useState<'yes' | 'no' | ''>('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -167,8 +167,14 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
         account.service.toLowerCase().includes(filterService.toLowerCase());
       const matchesAccount = !filterAccount || 
         account.accountEmail.toLowerCase().includes(filterAccount.toLowerCase());
-      const matchesSource = !filterSource || 
-        account.allSources.includes(filterSource as DataSource);
+      
+      // If forceSourceFilter is set, always filter by it; otherwise use filterSource
+      const sourceToMatch = forceSourceFilter || filterSource;
+      const matchesSource = !sourceToMatch || 
+        account.allSources.includes(sourceToMatch as DataSource) ||
+        account.source === sourceToMatch ||
+        (account.metadata?.source && account.metadata.source.toLowerCase().includes(sourceToMatch.toString().toLowerCase()));
+      
       const matchesPasswordStrength = !filterPasswordStrength || 
         (account.metadata?.passwordStrength || '').toLowerCase() === filterPasswordStrength.toLowerCase();
       const matchesPasswordReused = !filterPasswordReused || 
@@ -389,6 +395,7 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
                 Password Strength {getSortIcon('passwordStrength')}
               </th>
               <th>Reused?</th>
+              <th>Source</th>
               <th className="actions-column">Actions</th>
             </tr>
           </thead>
@@ -475,6 +482,35 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
                     <td className="password-cell">{account.metadata?.password || '-'}</td>
                     <td>{getPasswordStrengthBadge(account.metadata?.passwordStrength)}</td>
                     <td>{getReusedBadge(account.metadata?.passwordReused)}</td>
+                    <td>
+                      {(() => {
+                        // Show source from metadata if available, otherwise use account.source
+                        const sourceFromMetadata = account.metadata?.source;
+                        if (sourceFromMetadata) {
+                          // If it says "Imported" or similar, show "Imported"
+                          if (sourceFromMetadata.toLowerCase().includes('import')) {
+                            return 'Imported';
+                          }
+                          return sourceFromMetadata;
+                        }
+                        // Fallback to account.source or allSources
+                        if (account.allSources && account.allSources.length > 0) {
+                          const sources = account.allSources.map(s => {
+                            const sourceStr = s.toString();
+                            if (sourceStr.toLowerCase().includes('import')) {
+                              return 'Imported';
+                            }
+                            return sourceStr;
+                          });
+                          return sources.join(', ');
+                        }
+                        const sourceStr = account.source?.toString() || '';
+                        if (sourceStr.toLowerCase().includes('import')) {
+                          return 'Imported';
+                        }
+                        return sourceStr || 'Unknown';
+                      })()}
+                    </td>
                     <td className="actions-column">
                       <button
                         onClick={() => setExpandedAccountId(
@@ -496,7 +532,7 @@ export const AccountTable: React.FC<AccountTableProps> = ({ accounts }) => {
                   </tr>
                   {expandedAccountId === account.id && (
                     <tr>
-                      <td colSpan={8} className="link-discovery-cell">
+                      <td colSpan={9} className="link-discovery-cell">
                         <LinkDiscovery
                           accountId={account.id}
                           serviceName={account.service}

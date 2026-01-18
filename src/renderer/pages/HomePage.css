@@ -114,6 +114,58 @@
 
 /* Button styles are now in PageCommon.css for consistency */
 
+/* Horizontal navigation sections - rectangular buttons, 1/3 each */
+.horizontal-nav-sections {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.nav-section-card {
+  flex: 1;
+  aspect-ratio: 2.5 / 1; /* Makes it rectangular (wider than tall) */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  text-align: center;
+  position: relative;
+}
+
+.nav-section-card:hover {
+  background: linear-gradient(135deg, #5568d3 0%, #653a91 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.nav-section-card h2 {
+  margin: 0;
+  font-size: 1.3em;
+  color: white;
+  font-weight: 600;
+}
+
+.nav-arrow {
+  position: absolute;
+  bottom: 15px;
+  right: 20px;
+  font-size: 1.5em;
+  transition: transform 0.2s;
+}
+
+.nav-section-card:hover .nav-arrow {
+  transform: translateX(5px);
+}
+
+/* Legacy vertical sections (kept for backward compatibility) */
 .vertical-sections {
   display: flex;
   flex-direction: column;

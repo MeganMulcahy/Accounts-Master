@@ -5,34 +5,74 @@
 
 import React, { useState } from 'react';
 import { useMasterList } from '../contexts/MasterListContext';
-import { DataSource } from '@shared/types';
+import { DataSource, DiscoveredAccount } from '@shared/types';
 import { ExternalLink } from '../components/ExternalLink';
+import { AccountTable } from '../components/AccountTable';
 import './PageCommon.css';
 
 interface GmailSubscriptionsPageProps {
   onNavigate: (page: string) => void;
 }
 
+interface ImportedItem {
+  service: string;
+  email: string;
+  source: string;
+  importMethod: string;
+}
+
 export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPageProps) {
-  const { addAccounts } = useMasterList();
+  const { addAccounts, accounts } = useMasterList();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasteContent, setPasteContent] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [importedItems, setImportedItems] = useState<ImportedItem[]>([]);
 
   const handleFileUpload = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
+      if (!accountEmail.trim()) {
+        setError('Please enter the email address associated with this Gmail account');
+        setIsLoading(false);
+        return;
+      }
+
       if (window.electronAPI) {
-        // Use empty string for accountEmail - it will be derived from the file
-        const result = await window.electronAPI.selectAndParseFile(DataSource.GMAIL_TAKEOUT, '');
+        const emailToUse = accountEmail.trim();
+        const result = await window.electronAPI.selectAndParseFile(DataSource.GMAIL_TAKEOUT, emailToUse);
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
         } else {
-          addAccounts(result.accounts);
-          alert(`Successfully added ${result.accounts.length} accounts from Gmail Takeout!`);
+          const sourceLabel = 'Gmail MBOX Parse';
+          const importMethod = 'File Upload';
+          
+          // Add metadata: source, email, import method
+          const accountsWithMetadata = result.accounts.map(acc => ({
+            ...acc,
+            accountEmail: acc.accountEmail || emailToUse,
+            metadata: {
+              ...acc.metadata,
+              source: sourceLabel,
+              email: acc.accountEmail || emailToUse,
+              importMethod: importMethod,
+            },
+          }));
+
+          // Add to per-page import history
+          const newImportedItems: ImportedItem[] = accountsWithMetadata.map(acc => ({
+            service: acc.service,
+            email: acc.accountEmail,
+            source: sourceLabel,
+            importMethod: importMethod,
+          }));
+          setImportedItems(prev => [...prev, ...newImportedItems]);
+
+          addAccounts(accountsWithMetadata);
+          alert(`Successfully added ${accountsWithMetadata.length} accounts from Gmail Takeout!`);
         }
       } else {
         setError('Electron API not available');
@@ -50,6 +90,11 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
       return;
     }
 
+    if (!accountEmail.trim()) {
+      setError('Please enter the email address associated with this Gmail account');
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -57,14 +102,38 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
       // For paste content, we'll need to parse it in the main process
       // This is a simplified version - you may need to implement paste parsing
       if (window.electronAPI && (window.electronAPI as any).parseGmailTakeoutPaste) {
-        // Use empty string for accountEmail - it will be derived from the content
-        const result = await (window.electronAPI as any).parseGmailTakeoutPaste(pasteContent, '');
+        const emailToUse = accountEmail.trim();
+        const result = await (window.electronAPI as any).parseGmailTakeoutPaste(pasteContent, emailToUse);
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
         } else {
-          addAccounts(result.accounts);
-          alert(`Successfully added ${result.accounts.length} accounts from pasted content!`);
+          const sourceLabel = 'Gmail MBOX Parse';
+          const importMethod = 'Copy/Paste';
+          
+          // Add metadata: source, email, import method
+          const accountsWithMetadata = result.accounts.map(acc => ({
+            ...acc,
+            accountEmail: acc.accountEmail || emailToUse,
+            metadata: {
+              ...acc.metadata,
+              source: sourceLabel,
+              email: acc.accountEmail || emailToUse,
+              importMethod: importMethod,
+            },
+          }));
+
+          // Add to per-page import history
+          const newImportedItems: ImportedItem[] = accountsWithMetadata.map(acc => ({
+            service: acc.service,
+            email: acc.accountEmail,
+            source: sourceLabel,
+            importMethod: importMethod,
+          }));
+          setImportedItems(prev => [...prev, ...newImportedItems]);
+
+          addAccounts(accountsWithMetadata);
+          alert(`Successfully added ${accountsWithMetadata.length} accounts from pasted content!`);
           setPasteContent('');
         }
       } else {
@@ -107,12 +176,30 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
       </div>
 
       <div className="input-section">
+        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <label htmlFor="gmail-account-email" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Email Address:
+          </label>
+          <input
+            id="gmail-account-email"
+            type="email"
+            value={accountEmail}
+            onChange={(e) => setAccountEmail(e.target.value)}
+            placeholder="user@example.com"
+            className="filter-input"
+            style={{ width: '100%', maxWidth: '400px' }}
+          />
+          <p className="info-note" style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+            Enter the email address associated with this Gmail account.
+          </p>
+        </div>
+
         <div className="upload-section">
           <h3>Option 1: Upload File</h3>
           <p>Upload your Gmail Takeout MBOX file:</p>
           <button
             onClick={handleFileUpload}
-            disabled={isLoading}
+            disabled={isLoading || !accountEmail.trim()}
             className="btn btn-primary"
           >
             {isLoading ? 'Processing...' : 'Select and Process MBOX File'}
@@ -132,7 +219,7 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
           />
           <button
             onClick={handlePasteSubmit}
-            disabled={isLoading || !pasteContent.trim()}
+            disabled={isLoading || !pasteContent.trim() || !accountEmail.trim()}
             className="btn btn-primary"
           >
             {isLoading ? 'Processing...' : 'Parse Pasted Content'}
@@ -140,11 +227,53 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
         </div>
       </div>
 
+      {/* Per-Page Import History */}
+      {importedItems.length > 0 && (
+        <div className="import-history-section" style={{ marginTop: '2rem' }}>
+          <h2>Items Imported From This Page</h2>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #ddd' }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Service Name</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Email</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Source</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Import Method</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importedItems.map((item, index) => (
+                  <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '0.75rem' }}>{item.service}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.email}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.source}</td>
+                    <td style={{ padding: '0.75rem' }}>{item.importMethod}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+              Total: {importedItems.length} item{importedItems.length !== 1 ? 's' : ''} imported from this page
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="error-banner">
           <strong>Error:</strong> {error}
         </div>
       )}
+
+      {/* Master List Filtered by Source */}
+      <div className="master-list-section" style={{ marginTop: '2rem', width: '100%', maxWidth: '100%' }}>
+        <h2>Accounts from Gmail Subscriptions</h2>
+        <AccountTable accounts={accounts.filter(acc => 
+          acc.allSources.some((s: DataSource) => 
+            s === DataSource.GMAIL_TAKEOUT
+          )
+        )} />
+      </div>
 
       <div className="privacy-note">
         <strong>Privacy:</strong> All processing happens locally. Your email content is never sent to external servers.

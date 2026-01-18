@@ -280,29 +280,23 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       )}
 
-      <div className="vertical-sections">
+      <div className="horizontal-nav-sections">
         {/* Email Section */}
-        <div className="section-card">
-          <div className="section-header" onClick={() => onNavigate('email')}>
-            <h2>📧 Email</h2>
-            <span className="expand-icon">→</span>
-          </div>
+        <div className="nav-section-card" onClick={() => onNavigate('email')}>
+          <h2>📧 Email</h2>
+          <span className="nav-arrow">→</span>
         </div>
 
         {/* Password Managers Section */}
-        <div className="section-card">
-          <div className="section-header" onClick={() => onNavigate('passwords')}>
-            <h2>🔐 Password Managers</h2>
-            <span className="expand-icon">→</span>
-          </div>
+        <div className="nav-section-card" onClick={() => onNavigate('passwords')}>
+          <h2>🔐 Password Managers</h2>
+          <span className="nav-arrow">→</span>
         </div>
 
         {/* OAuth Connectors Section */}
-        <div className="section-card">
-          <div className="section-header" onClick={() => onNavigate('oauth')}>
-            <h2>🔗 OAuth Connectors</h2>
-            <span className="expand-icon">→</span>
-          </div>
+        <div className="nav-section-card" onClick={() => onNavigate('oauth')}>
+          <h2>🔗 OAuth Connectors</h2>
+          <span className="nav-arrow">→</span>
         </div>
       </div>
 
@@ -321,7 +315,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               onChange={(e) => setCommonPasswordPhrases(e.target.value)}
               placeholder="Enter phrases separated by commas or new lines. For example:&#10;John&#10;Smith&#10;password123&#10;mypetname"
               className="phrases-textarea"
-              rows={6}
+              rows={3}
             />
           </div>
         </div>
@@ -352,10 +346,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
             >
               Export to Excel
             </button>
+            {/* Hidden but functional - consolidation still runs automatically on import */}
             <button
               onClick={handleMergeCleanData}
               disabled={accounts.length === 0 || isMerging}
               className="btn btn-danger"
+              style={{ display: 'none' }}
+              aria-hidden="true"
             >
               {isMerging ? 'Merging...' : '🧹 Merge/Clean Data'}
             </button>

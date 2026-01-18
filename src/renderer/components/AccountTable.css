@@ -2,6 +2,8 @@
   flex: 1;
   padding: 0 2rem 2rem;
   margin-bottom: 2rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 .account-table-filters {
@@ -367,7 +369,32 @@
 
 .account-table th:nth-child(4),
 .account-table td:nth-child(4) {
-  width: 13%; /* Username */
+  width: 15%; /* Username */
+}
+
+.account-table th:nth-child(5),
+.account-table td:nth-child(5) {
+  width: 15%; /* Password */
+}
+
+.account-table th:nth-child(6),
+.account-table td:nth-child(6) {
+  width: 12%; /* Password Strength */
+}
+
+.account-table th:nth-child(7),
+.account-table td:nth-child(7) {
+  width: 8%; /* Reused? */
+}
+
+.account-table th:nth-child(8),
+.account-table td:nth-child(8) {
+  width: 12%; /* Source */
+}
+
+.account-table th:nth-child(9),
+.account-table td:nth-child(9) {
+  width: 10%; /* Actions */width: 13%; /* Username */
 }
 
 .account-table th:nth-child(5),
