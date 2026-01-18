@@ -150,7 +150,7 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
     <div className="page-container">
       <div className="page-header">
         <button onClick={() => onNavigate('home')} className="btn-back">
-          ← Back to Home
+          ←
         </button>
         <h1>Gmail Subscriptions</h1>
         <div></div>

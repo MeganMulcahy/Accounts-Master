@@ -271,7 +271,7 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
     <div className="page-container">
       <div className="page-header">
         <button onClick={() => onNavigate('home')} className="btn-back">
-          ← Back to Home
+          ←
         </button>
         <h1>Password Managers</h1>
         <div></div>

@@ -32,7 +32,7 @@
 
 .page-header > div:last-child {
   flex: 0 0 auto;
-  width: 150px; /* Same width as back button to center title */
+  width: 48px; /* Same width as back button to center title */
 }
 
 /* Centered header for home page */
@@ -54,11 +54,15 @@
   color: white;
   border: none;
   border-radius: 6px;
-  padding: 12px 24px;
-  font-size: 1em;
+  padding: 12px 16px;
+  font-size: 1.5em;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-back:hover {
