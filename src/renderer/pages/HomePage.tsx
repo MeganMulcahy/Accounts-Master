@@ -15,16 +15,109 @@ interface HomePageProps {
 }
 
 export function HomePage({ onNavigate }: HomePageProps) {
-  const { accounts, addAccounts } = useMasterList();
+  const { accounts, addAccounts, commonPasswordPhrases, setCommonPasswordPhrases, consolidateData } = useMasterList();
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
+
+  /**
+   * Calculate duplicate groups for accounts based on service or link (email removed to reduce false duplicates)
+   * Returns Map of account ID to group number (or null if no duplicates)
+   */
+  const calculateDuplicateGroups = (accountsList: typeof accounts): Map<string, number | null> => {
+    const serviceMap = new Map<string, string[]>();
+    const linkMap = new Map<string, string[]>();
+    const unionFind = new Map<string, string>();
+
+    // Helper function to find root of a group (union-find)
+    const findRoot = (id: string): string => {
+      if (!unionFind.has(id)) {
+        unionFind.set(id, id);
+        return id;
+      }
+      const parent = unionFind.get(id)!;
+      if (parent === id) {
+        return id;
+      }
+      const root = findRoot(parent);
+      unionFind.set(id, root);
+      return root;
+    };
+
+    // Helper function to union two accounts
+    const union = (id1: string, id2: string) => {
+      const root1 = findRoot(id1);
+      const root2 = findRoot(id2);
+      if (root1 !== root2) {
+        unionFind.set(root2, root1);
+      }
+    };
+
+    // Index accounts by service and link (email removed)
+    accountsList.forEach(account => {
+      const accountId = account.id;
+      const service = account.service.toLowerCase().trim();
+      const link = account.metadata?.link?.toLowerCase().trim() || '';
+
+      if (service) {
+        if (!serviceMap.has(service)) serviceMap.set(service, []);
+        serviceMap.get(service)!.push(accountId);
+      }
+      if (link) {
+        if (!linkMap.has(link)) linkMap.set(link, []);
+        linkMap.get(link)!.push(accountId);
+      }
+    });
+
+    // Union accounts that share service or link (email removed)
+    for (const ids of serviceMap.values()) {
+      if (ids.length > 1) {
+        for (let i = 1; i < ids.length; i++) union(ids[0], ids[i]);
+      }
+    }
+    for (const ids of linkMap.values()) {
+      if (ids.length > 1) {
+        for (let i = 1; i < ids.length; i++) union(ids[0], ids[i]);
+      }
+    }
+
+    // Count accounts per group
+    const groupCounts = new Map<string, number>();
+    accountsList.forEach(account => {
+      const root = findRoot(account.id);
+      groupCounts.set(root, (groupCounts.get(root) || 0) + 1);
+    });
+
+    // Assign group numbers
+    let groupNum = 1;
+    const groupNumbers = new Map<string, number>();
+    const accountIdToGroupNum = new Map<string, number | null>();
+
+    accountsList.forEach(account => {
+      const root = findRoot(account.id);
+      const count = groupCounts.get(root) || 0;
+      if (count > 1) {
+        if (!groupNumbers.has(root)) {
+          groupNumbers.set(root, groupNum++);
+        }
+        accountIdToGroupNum.set(account.id, groupNumbers.get(root)!);
+      } else {
+        accountIdToGroupNum.set(account.id, null);
+      }
+    });
+
+    return accountIdToGroupNum;
+  };
 
   /**
    * Export accounts to CSV or Excel
    */
   const handleExport = async (format: 'csv' | 'excel') => {
     try {
+      // Calculate duplicate groups
+      const duplicateGroups = calculateDuplicateGroups(accounts);
+
       // Convert DeduplicatedAccount to DiscoveredAccount for export
       const exportAccounts: DiscoveredAccount[] = accounts.map(account => ({
         id: account.id,
@@ -38,11 +131,20 @@ export function HomePage({ onNavigate }: HomePageProps) {
       if (format === 'excel') {
         // Excel export
         const { exportToExcel } = await import('../utils/export');
-        exportToExcel(exportAccounts, `accounts-export-${Date.now()}.xlsx`);
+        exportToExcel(exportAccounts, duplicateGroups, `accounts-export-${Date.now()}.xlsx`);
       } else {
-        // CSV export through Electron
+        // CSV export through Electron - pass duplicate groups
         if (window.electronAPI) {
-          const result = await window.electronAPI.exportAccounts(exportAccounts, format);
+          // For CSV, we need to pass duplicate groups separately or embed in accounts
+          // Let's embed the group number in metadata temporarily for export
+          const accountsWithGroups = exportAccounts.map(acc => ({
+            ...acc,
+            metadata: {
+              ...acc.metadata,
+              _duplicateGroup: duplicateGroups.get(acc.id)?.toString() || '',
+            },
+          }));
+          const result = await window.electronAPI.exportAccounts(accountsWithGroups, format);
           if (result.success) {
             alert(`Accounts exported successfully to: ${result.filePath}`);
           } else {
@@ -79,12 +181,26 @@ export function HomePage({ onNavigate }: HomePageProps) {
       if (result.format === 'excel' && result.fileData) {
         const { parseExcelImport } = await import('../utils/export');
         const importedAccounts = parseExcelImport(result.fileData);
-        addAccounts(importedAccounts);
-        alert(`Successfully imported ${importedAccounts.length} accounts from Excel file!`);
+        try {
+          addAccounts(importedAccounts);
+          alert(`Successfully imported ${importedAccounts.length} accounts from Excel file!`);
+        } catch (addError) {
+          const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+          console.error('Error adding accounts:', addError);
+          setError(`Failed to add accounts: ${addErrorMessage}`);
+          alert(`Import completed but failed to add accounts: ${addErrorMessage}`);
+        }
       } else if (result.accounts && result.accounts.length > 0) {
         // Handle CSV files (already parsed in main process)
-        addAccounts(result.accounts);
-        alert(`Successfully imported ${result.accounts.length} accounts from CSV file!`);
+        try {
+          addAccounts(result.accounts);
+          alert(`Successfully imported ${result.accounts.length} accounts from CSV file!`);
+        } catch (addError) {
+          const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+          console.error('Error adding accounts:', addError);
+          setError(`Failed to add accounts: ${addErrorMessage}`);
+          alert(`Import completed but failed to add accounts: ${addErrorMessage}`);
+        }
       } else {
         setError('No accounts found in the imported file');
       }
@@ -94,6 +210,48 @@ export function HomePage({ onNavigate }: HomePageProps) {
       alert(`Import error: ${errorMessage}`);
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  /**
+   * Merge/Clean Data - consolidates duplicates in current dataset
+   */
+  const handleMergeCleanData = () => {
+    if (accounts.length === 0) {
+      alert('No accounts to merge.');
+      return;
+    }
+
+    setIsMerging(true);
+    try {
+      const beforeCount = accounts.length;
+      const result = consolidateData();
+      const afterCount = result.accounts.length;
+      const merged = result.mergedCount;
+      const removed = result.removedCount;
+
+      const messages: string[] = [];
+      if (merged > 0) {
+        messages.push(`${merged} duplicate ${merged === 1 ? 'entry' : 'entries'} merged`);
+      }
+      if (removed > 0) {
+        messages.push(`${removed} empty ${removed === 1 ? 'row' : 'rows'} removed`);
+      }
+      if (beforeCount > afterCount) {
+        messages.push(`Total: ${beforeCount} → ${afterCount} accounts`);
+      }
+
+      if (messages.length > 0) {
+        alert(`Data merged successfully!\n\n${messages.join('\n')}`);
+      } else {
+        alert('No duplicates found. Data is already clean.');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to merge data: ${errorMessage}`);
+      alert(`Error merging data: ${errorMessage}`);
+    } finally {
+      setIsMerging(false);
     }
   };
 
@@ -148,6 +306,27 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </div>
 
+      <div className="user-info-section">
+        <div className="action-group">
+          <h2>Phrases You Commonly Use (for Password Security Analysis)</h2>
+          <p className="info-note">
+            Enter phrases you commonly use in passwords (including your name, last name, and any common password phrases).
+            Passwords containing these phrases will be flagged as weak. Separate phrases with commas or new lines.
+          </p>
+          <div className="phrases-input-group">
+            <label htmlFor="commonPasswordPhrases">Common Password Phrases:</label>
+            <textarea
+              id="commonPasswordPhrases"
+              value={commonPasswordPhrases}
+              onChange={(e) => setCommonPasswordPhrases(e.target.value)}
+              placeholder="Enter phrases separated by commas or new lines. For example:&#10;John&#10;Smith&#10;password123&#10;mypetname"
+              className="phrases-textarea"
+              rows={6}
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="import-export-section">
         <div className="action-group">
           <h2>Import/Export Data</h2>
@@ -172,6 +351,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
               className="btn btn-export"
             >
               Export to Excel
+            </button>
+            <button
+              onClick={handleMergeCleanData}
+              disabled={accounts.length === 0 || isMerging}
+              className="btn btn-danger"
+            >
+              {isMerging ? 'Merging...' : '🧹 Merge/Clean Data'}
             </button>
           </div>
         </div>

@@ -13,6 +13,7 @@ export interface ElectronAPI {
   openExternalUrl?: (url: string) => Promise<{ success: boolean; error?: string }>;
   openExternalUrlChrome?: (url: string) => Promise<{ success: boolean; error?: string }>;
   openApplePasswords?: () => Promise<{ success: boolean; error?: string }>;
+  discoverLinks?: (serviceName: string, serviceDomain?: string) => Promise<{ service: string; links: Array<{ url: string; type: string; confidence: number; domain: string; title?: string }>; errors: string[] }>;
 }
 
 declare global {

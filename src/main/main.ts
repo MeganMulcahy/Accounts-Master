@@ -20,6 +20,7 @@ import {
 import { DiscoveredAccount, DataSource } from '../shared/types';
 import { validateFileSize } from '../shared/security';
 import { deduplicateAccounts } from '../shared/deduplication';
+import { linkFinder, LinkDiscoveryResult } from '../shared/linkFinder';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -194,20 +195,56 @@ ipcMain.handle('export-accounts', async (event, accounts: DiscoveredAccount[], f
 
 /**
  * Export accounts to CSV
+ * Includes columns: Service, Duplicate Group, Link, Username, Password, Password Strength, Password Reused,
+ * Change Password Link, Delete Account Link, Security Settings Link
+ * Removed: Account Email, Password Recommendation, Source, Date Discovered
+ * Removes exactly duplicate rows
  */
 async function exportToCSV(accounts: DiscoveredAccount[], filePath: string): Promise<void> {
-  const headers = ['Service', 'Account Email', 'Username', 'Password', 'Source'];
-  const rows = accounts.map(account => [
-    account.service,
-    account.accountEmail,
-    account.metadata?.username || '',
-    account.metadata?.password || '',
-    account.source,
-  ]);
+  const headers = [
+    'Service',
+    'Duplicate Group',
+    'Link',
+    'Username',
+    'Password',
+    'Password Strength',
+    'Password Reused',
+    'Change Password Link',
+    'Delete Account Link',
+    'Security Settings Link',
+  ];
+
+  const rows = accounts.map(account => {
+    // Extract links from metadata (support both formats)
+    const changePasswordLink = account.metadata?.['change-password'] || account.metadata?.['changePassword'] || '';
+    const deleteAccountLink = account.metadata?.['delete-account'] || account.metadata?.['deleteAccount'] || '';
+    const securitySettingsLink = account.metadata?.['security-settings'] || account.metadata?.['securitySettings'] || '';
+
+    // Get duplicate group from metadata._duplicateGroup (set by renderer)
+    const duplicateGroupStr = account.metadata?._duplicateGroup || '';
+
+    return [
+      account.service || '',
+      duplicateGroupStr,
+      account.metadata?.link || '',
+      account.metadata?.username || '',
+      account.metadata?.password || '', // Unencrypted password
+      account.metadata?.passwordStrength || '',
+      account.metadata?.passwordReused || '',
+      changePasswordLink,
+      deleteAccountLink,
+      securitySettingsLink,
+    ];
+  });
+
+  // Remove exactly duplicate rows (all fields are identical)
+  const uniqueRows = Array.from(
+    new Map(rows.map(row => [JSON.stringify(row), row])).values()
+  );
 
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ...uniqueRows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
   ].join('\n');
 
   await fs.writeFile(filePath, csvContent, 'utf-8');
@@ -813,4 +850,25 @@ ipcMain.handle('get-app-info', async () => {
     version: app.getVersion(),
     platform: process.platform,
   };
+});
+
+/**
+ * Discover links for a service (Change Password, Delete Account pages)
+ * PRIVACY: Only uses service name and domain - NEVER uses user email or credentials
+ */
+ipcMain.handle('discover-links', async (event, serviceName: string, serviceDomain?: string): Promise<LinkDiscoveryResult> => {
+  try {
+    // Discover links using only service name and domain
+    // If serviceDomain not provided, LinkFinder will infer it from service name
+    // PRIVACY: Only uses service name and domain - NEVER uses user email or credentials
+    const result = await linkFinder.discoverLinks(serviceName, serviceDomain);
+    
+    return result;
+  } catch (error) {
+    return {
+      service: serviceName,
+      links: [],
+      errors: [`Failed to discover links: ${error instanceof Error ? error.message : 'Unknown error'}`],
+    };
+  }
 });

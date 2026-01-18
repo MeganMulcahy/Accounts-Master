@@ -15,34 +15,24 @@ interface GmailSubscriptionsPageProps {
 
 export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPageProps) {
   const { addAccounts } = useMasterList();
-  const [accountEmail, setAccountEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasteContent, setPasteContent] = useState('');
 
-  const isValidEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
   const handleFileUpload = async () => {
-    if (!accountEmail || !isValidEmail(accountEmail)) {
-      setError('Please enter a valid account email address');
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
 
       if (window.electronAPI) {
-        const result = await window.electronAPI.selectAndParseFile(DataSource.GMAIL_TAKEOUT, accountEmail);
+        // Use empty string for accountEmail - it will be derived from the file
+        const result = await window.electronAPI.selectAndParseFile(DataSource.GMAIL_TAKEOUT, '');
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
         } else {
           addAccounts(result.accounts);
           alert(`Successfully added ${result.accounts.length} accounts from Gmail Takeout!`);
-          setAccountEmail('');
         }
       } else {
         setError('Electron API not available');
@@ -55,11 +45,6 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
   };
 
   const handlePasteSubmit = async () => {
-    if (!accountEmail || !isValidEmail(accountEmail)) {
-      setError('Please enter a valid account email address');
-      return;
-    }
-
     if (!pasteContent.trim()) {
       setError('Please paste the exported content');
       return;
@@ -72,7 +57,8 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
       // For paste content, we'll need to parse it in the main process
       // This is a simplified version - you may need to implement paste parsing
       if (window.electronAPI && (window.electronAPI as any).parseGmailTakeoutPaste) {
-        const result = await (window.electronAPI as any).parseGmailTakeoutPaste(pasteContent, accountEmail);
+        // Use empty string for accountEmail - it will be derived from the content
+        const result = await (window.electronAPI as any).parseGmailTakeoutPaste(pasteContent, '');
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
@@ -80,7 +66,6 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
           addAccounts(result.accounts);
           alert(`Successfully added ${result.accounts.length} accounts from pasted content!`);
           setPasteContent('');
-          setAccountEmail('');
         }
       } else {
         setError('Paste parsing not yet implemented. Please use file upload instead.');
@@ -122,25 +107,12 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
       </div>
 
       <div className="input-section">
-        <div className="form-group">
-          <label htmlFor="account-email">Gmail Account Email:</label>
-          <input
-            id="account-email"
-            type="email"
-            value={accountEmail}
-            onChange={(e) => setAccountEmail(e.target.value)}
-            placeholder="your.email@gmail.com"
-            disabled={isLoading}
-            className="form-input"
-          />
-        </div>
-
         <div className="upload-section">
           <h3>Option 1: Upload File</h3>
           <p>Upload your Gmail Takeout MBOX file:</p>
           <button
             onClick={handleFileUpload}
-            disabled={isLoading || !accountEmail}
+            disabled={isLoading}
             className="btn btn-primary"
           >
             {isLoading ? 'Processing...' : 'Select and Process MBOX File'}
@@ -160,7 +132,7 @@ export function GmailSubscriptionsPage({ onNavigate }: GmailSubscriptionsPagePro
           />
           <button
             onClick={handlePasteSubmit}
-            disabled={isLoading || !accountEmail || !pasteContent.trim()}
+            disabled={isLoading || !pasteContent.trim()}
             className="btn btn-primary"
           >
             {isLoading ? 'Processing...' : 'Parse Pasted Content'}

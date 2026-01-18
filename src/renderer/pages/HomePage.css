@@ -16,6 +16,47 @@
   font-size: 1.1em;
 }
 
+.user-info-section {
+  margin-bottom: 30px;
+}
+
+.phrases-input-group {
+  margin-top: 15px;
+}
+
+.phrases-input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.phrases-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.5;
+}
+
+.phrases-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.info-note {
+  margin-bottom: 15px;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .import-export-section {
   margin-bottom: 30px;
 }

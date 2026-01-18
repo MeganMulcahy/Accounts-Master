@@ -159,11 +159,41 @@ export class AppleParser extends BaseParser {
   
   /**
    * Extract service name from title or URL
+   * Handles complex strings like "accounts.spotify.com (meganmulcahy9)"
    */
   private extractServiceName(title: string, url: string): string {
-    // Prefer title if available
+    // Prefer title if available, but clean it up
     if (title) {
-      return title;
+      // Remove parenthetical text like "(meganmulcahy9)"
+      let cleaned = title.replace(/\s*\([^)]*\)\s*/g, '').trim();
+      
+      // If it looks like a domain/subdomain, extract clean service name
+      if (cleaned.match(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)) {
+        // Extract domain pattern
+        const domainMatch = cleaned.match(/(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.)?([a-zA-Z0-9-]+)\.(?:com|net|org|io|co|us|uk|de|fr|ca|au|jp|in|edu|gov|app|dev)/i);
+        if (domainMatch && domainMatch[2]) {
+          const mainDomain = domainMatch[2].toLowerCase();
+          // Known service mappings
+          const serviceMap: Record<string, string> = {
+            'spotify': 'Spotify',
+            'netflix': 'Netflix',
+            'google': 'Google',
+            'facebook': 'Facebook',
+            'amazon': 'Amazon',
+            'appfolio': 'Allied',
+            'crimson': 'Crimson',
+            'domini': 'DominI',
+          };
+          if (serviceMap[mainDomain]) {
+            return serviceMap[mainDomain];
+          }
+          // Capitalize first letter
+          return mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1);
+        }
+      }
+      
+      // If title is clean, use it
+      return cleaned;
     }
     
     // Extract from URL
@@ -175,10 +205,28 @@ export class AppleParser extends BaseParser {
         // Remove www. prefix
         let serviceName = hostname.replace(/^www\./i, '');
         
-        // Extract domain name
+        // Extract domain name (handle subdomains like "accounts.spotify.com")
         const parts = serviceName.split('.');
-        if (parts.length > 1) {
+        if (parts.length >= 2) {
+          // For "accounts.spotify.com", take "spotify" (second-to-last part)
           serviceName = parts[parts.length - 2] || parts[0];
+        }
+        
+        // Known service mappings
+        const serviceMap: Record<string, string> = {
+          'spotify': 'Spotify',
+          'netflix': 'Netflix',
+          'google': 'Google',
+          'facebook': 'Facebook',
+          'amazon': 'Amazon',
+          'appfolio': 'Allied',
+          'crimson': 'Crimson',
+          'domini': 'DominI',
+        };
+        
+        const serviceNameLower = serviceName.toLowerCase();
+        if (serviceMap[serviceNameLower]) {
+          return serviceMap[serviceNameLower];
         }
         
         // Capitalize first letter

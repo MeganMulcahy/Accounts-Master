@@ -23,19 +23,10 @@ const OAUTH_LINKS = [
 export function ConnectedAppsPage({ onNavigate }: ConnectedAppsPageProps) {
   const { addAccounts } = useMasterList();
   const [appNames, setAppNames] = useState('');
-  const [accountEmail, setAccountEmail] = useState('');
+  const [selectedSource, setSelectedSource] = useState<DataSource>(DataSource.GMAIL_OAUTH);
   const [error, setError] = useState<string | null>(null);
 
-  const isValidEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
   const handleAppNamesSubmit = () => {
-    if (!accountEmail || !isValidEmail(accountEmail)) {
-      setError('Please enter a valid account email address');
-      return;
-    }
-
     if (!appNames.trim()) {
       setError('Please paste the app names');
       return;
@@ -54,22 +45,31 @@ export function ConnectedAppsPage({ onNavigate }: ConnectedAppsPageProps) {
       }
 
       // Create discovered accounts from app names
+      // OAuth apps have no username/password - they use OAuth authentication
       const newAccounts: DiscoveredAccount[] = names.map((name, index) => ({
         id: `oauth-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
         service: name,
-        accountEmail,
-        source: DataSource.MICROSOFT_OAUTH, // Default source, could be enhanced
+        accountEmail: '', // Empty email for OAuth apps
+        source: selectedSource, // Use selected OAuth provider source
         discoveredAt: new Date(),
         metadata: {
           parsedFrom: 'OAuth App List',
+          username: '', // Empty username for OAuth apps
+          password: '', // Empty password for OAuth apps (uses OAuth instead)
         },
       }));
 
-      addAccounts(newAccounts);
-      alert(`Successfully added ${newAccounts.length} connected apps to your master list!`);
-      setAppNames('');
-      setAccountEmail('');
-      setError(null);
+      try {
+        addAccounts(newAccounts);
+        alert(`Successfully added ${newAccounts.length} connected apps to your master list!`);
+        setAppNames('');
+        setError(null);
+      } catch (addError) {
+        const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+        console.error('Error adding accounts:', addError);
+        setError(`Failed to add accounts: ${addErrorMessage}`);
+        alert(`Failed to add accounts: ${addErrorMessage}`);
+      }
     } catch (err) {
       setError(`Failed to parse app names: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
@@ -142,23 +142,33 @@ export function ConnectedAppsPage({ onNavigate }: ConnectedAppsPageProps) {
       </div>
 
       <div className="input-section">
-        <div className="form-group">
-          <label htmlFor="account-email">Account Email:</label>
-          <input
-            id="account-email"
-            type="email"
-            value={accountEmail}
-            onChange={(e) => setAccountEmail(e.target.value)}
-            placeholder="your.email@example.com"
-            className="form-input"
-          />
-        </div>
-
         <div className="paste-section">
           <h3>Paste App Names</h3>
           <p>
-            Paste the app names you found (one per line or comma-separated):
+            Select where these apps are coming from, then paste the app names (one per line or comma-separated):
           </p>
+          
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label htmlFor="oauth-source" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              OAuth Provider:
+            </label>
+            <select
+              id="oauth-source"
+              value={selectedSource}
+              onChange={(e) => setSelectedSource(e.target.value as DataSource)}
+              className="filter-select"
+              style={{ width: '100%', maxWidth: '400px' }}
+            >
+              <option value={DataSource.GMAIL_OAUTH}>Log in with Google</option>
+              <option value={DataSource.MICROSOFT_OAUTH}>Log in with Microsoft</option>
+              <option value={DataSource.FACEBOOK_OAUTH}>Log in with Facebook</option>
+              <option value={DataSource.TWITTER_OAUTH}>Log in with Twitter/X</option>
+            </select>
+            <p className="info-note" style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+              Note: OAuth apps use authentication tokens, so username and password fields will be empty.
+            </p>
+          </div>
+          
           <textarea
             value={appNames}
             onChange={(e) => setAppNames(e.target.value)}
@@ -172,7 +182,7 @@ Slack, Zoom, Microsoft Teams`}
           />
           <button
             onClick={handleAppNamesSubmit}
-            disabled={!accountEmail || !appNames.trim()}
+            disabled={!appNames.trim()}
             className="btn btn-primary"
           >
             Add Apps to Master List

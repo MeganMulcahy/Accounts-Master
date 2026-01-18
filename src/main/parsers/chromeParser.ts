@@ -145,9 +145,41 @@ export class ChromeParser extends BaseParser {
   
   /**
    * Extract service name from URL or name field
+   * Handles complex strings like "accounts.spotify.com (meganmulcahy9)"
    */
   private extractServiceName(name: string, url: string): string {
-    // Try to extract from URL first
+    // Try to extract from name field first (might contain domain-like strings)
+    if (name) {
+      // Remove parenthetical text like "(meganmulcahy9)"
+      let cleaned = name.replace(/\s*\([^)]*\)\s*/g, '').trim();
+      
+      // If it looks like a domain/subdomain, extract clean service name
+      if (cleaned.match(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)) {
+        // Extract domain pattern (handle both with and without protocol)
+        const domainMatch = cleaned.match(/(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.)?([a-zA-Z0-9-]+)\.(?:com|net|org|io|co|us|uk|de|fr|ca|au|jp|in|edu|gov|app|dev)/i);
+        if (domainMatch && domainMatch[2]) {
+          const mainDomain = domainMatch[2].toLowerCase();
+          // Known service mappings
+          const serviceMap: Record<string, string> = {
+            'spotify': 'Spotify',
+            'netflix': 'Netflix',
+            'google': 'Google',
+            'facebook': 'Facebook',
+            'amazon': 'Amazon',
+            'appfolio': 'Allied',
+            'crimson': 'Crimson',
+            'domini': 'DominI',
+          };
+          if (serviceMap[mainDomain]) {
+            return serviceMap[mainDomain];
+          }
+          // Capitalize first letter
+          return mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1);
+        }
+      }
+    }
+    
+    // Try to extract from URL
     if (url) {
       try {
         const urlObj = new URL(url);
@@ -156,11 +188,28 @@ export class ChromeParser extends BaseParser {
         // Remove www. prefix
         let serviceName = hostname.replace(/^www\./i, '');
         
-        // Extract domain name (remove TLD)
+        // Extract domain name (handle subdomains like "accounts.spotify.com")
         const parts = serviceName.split('.');
-        if (parts.length > 1) {
-          // Take the main domain part
+        if (parts.length >= 2) {
+          // For "accounts.spotify.com", take "spotify" (second-to-last part)
           serviceName = parts[parts.length - 2] || parts[0];
+        }
+        
+        // Known service mappings
+        const serviceMap: Record<string, string> = {
+          'spotify': 'Spotify',
+          'netflix': 'Netflix',
+          'google': 'Google',
+          'facebook': 'Facebook',
+          'amazon': 'Amazon',
+          'appfolio': 'Allied',
+          'crimson': 'Crimson',
+          'domini': 'DominI',
+        };
+        
+        const serviceNameLower = serviceName.toLowerCase();
+        if (serviceMap[serviceNameLower]) {
+          return serviceMap[serviceNameLower];
         }
         
         // Capitalize first letter
@@ -173,9 +222,9 @@ export class ChromeParser extends BaseParser {
       }
     }
     
-    // Fall back to name field
+    // Fall back to cleaned name field
     if (name) {
-      return name;
+      return name.replace(/\s*\([^)]*\)\s*/g, '').trim();
     }
     
     return '';

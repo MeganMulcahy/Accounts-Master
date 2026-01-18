@@ -15,34 +15,31 @@ interface EmailPageProps {
 
 export function EmailPage({ onNavigate }: EmailPageProps) {
   const { addAccounts } = useMasterList();
-  const [accountEmail, setAccountEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasteContent, setPasteContent] = useState('');
 
-  const isValidEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
   const handleFileUpload = async (dataSource: DataSource) => {
-    if (!accountEmail || !isValidEmail(accountEmail)) {
-      setError('Please enter a valid account email address');
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
 
       if (window.electronAPI) {
-        const result = await window.electronAPI.selectAndParseFile(dataSource, accountEmail);
+        // Use empty string for accountEmail - it will be derived from the file or content
+        const result = await window.electronAPI.selectAndParseFile(dataSource, '');
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
         } else {
-          addAccounts(result.accounts);
-          alert(`Successfully added ${result.accounts.length} accounts!`);
-          setAccountEmail('');
+          try {
+            addAccounts(result.accounts);
+            alert(`Successfully added ${result.accounts.length} accounts!`);
+          } catch (addError) {
+            const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+            console.error('Error adding accounts:', addError);
+            setError(`Failed to add accounts: ${addErrorMessage}`);
+            alert(`File processed but failed to add accounts: ${addErrorMessage}`);
+          }
         }
       } else {
         setError('Electron API not available');
@@ -77,12 +74,13 @@ export function EmailPage({ onNavigate }: EmailPageProps) {
         
         if (parts.length >= 2) {
           const service = parts[0] || 'Unknown';
-          const email = parts[1] || accountEmail || 'unknown@example.com';
+          // Extract email from the pasted content if available
+          const email = parts[1] || '';
 
           accounts.push({
             id: `pasted-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
             service: service.substring(0, 200),
-            accountEmail: email.substring(0, 254),
+            accountEmail: email.substring(0, 254) || '', // Empty if no email in paste
             source: DataSource.GMAIL_TAKEOUT,
             discoveredAt: new Date(),
             metadata: {
@@ -93,9 +91,16 @@ export function EmailPage({ onNavigate }: EmailPageProps) {
       }
 
       if (accounts.length > 0) {
-        addAccounts(accounts);
-        alert(`Successfully added ${accounts.length} accounts from pasted content!`);
-        setPasteContent('');
+        try {
+          addAccounts(accounts);
+          alert(`Successfully added ${accounts.length} accounts from pasted content!`);
+          setPasteContent('');
+        } catch (addError) {
+          const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+          console.error('Error adding accounts:', addError);
+          setError(`Failed to add accounts: ${addErrorMessage}`);
+          alert(`Content parsed but failed to add accounts: ${addErrorMessage}`);
+        }
       } else {
         setError('Could not parse any accounts from the pasted content');
       }
@@ -158,24 +163,11 @@ export function EmailPage({ onNavigate }: EmailPageProps) {
         <h2>Import or Paste Accounts</h2>
         <p>You can paste: account, email associated with provider, email account associated with account found, username, password, etc.</p>
 
-        <div className="form-group">
-          <label htmlFor="account-email">Account Email (optional):</label>
-          <input
-            id="account-email"
-            type="email"
-            value={accountEmail}
-            onChange={(e) => setAccountEmail(e.target.value)}
-            placeholder="your.email@example.com"
-            disabled={isLoading}
-            className="form-input"
-          />
-        </div>
-
         <div className="upload-section">
           <h3>Option 1: Upload File (Gmail MBOX)</h3>
           <button
             onClick={() => handleFileUpload(DataSource.GMAIL_TAKEOUT)}
-            disabled={isLoading || !accountEmail}
+            disabled={isLoading}
             className="btn btn-primary"
           >
             {isLoading ? 'Processing...' : 'Select and Process MBOX File'}

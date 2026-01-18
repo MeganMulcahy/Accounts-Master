@@ -63,6 +63,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   openApplePasswords: () =>
     ipcRenderer.invoke('open-apple-passwords'),
+
+  /**
+   * Discover links for a service (Change Password, Delete Account pages)
+   * PRIVACY: Only uses service name and domain - NEVER uses user email
+   */
+  discoverLinks: (serviceName: string, serviceDomain?: string) =>
+    ipcRenderer.invoke('discover-links', serviceName, serviceDomain),
 });
 
 /**
@@ -80,6 +87,7 @@ declare global {
       openExternalUrl: (url: string) => Promise<{ success: boolean; error?: string }>;
       openExternalUrlChrome: (url: string) => Promise<{ success: boolean; error?: string }>;
       openApplePasswords: () => Promise<{ success: boolean; error?: string }>;
+      discoverLinks: (serviceName: string, serviceDomain?: string) => Promise<{ service: string; links: any[]; errors: string[] }>;
     };
   }
 }

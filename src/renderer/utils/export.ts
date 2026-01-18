@@ -8,20 +8,78 @@ import { DiscoveredAccount } from '../../shared/types';
 
 /**
  * Export accounts to CSV format
+ * Includes columns: Service, Duplicate Group, Link, Username, Password, Password Strength, Password Reused,
+ * Change Password Link, Delete Account Link, Security Settings Link
+ * Removed: Account Email, Password Recommendation, Source, Date Discovered
+ * Removes exactly duplicate rows
  */
-export function exportToCSV(accounts: DiscoveredAccount[]): string {
-  const headers = ['Service', 'Account Email', 'Username', 'Password', 'Source'];
-  const rows = accounts.map(account => [
-    account.service,
-    account.accountEmail,
-    account.metadata?.username || '',
-    account.metadata?.password || '',
-    account.source,
-  ]);
+export function exportToCSV(
+  accounts: DiscoveredAccount[],
+  duplicateGroups?: Map<string, number | null>
+): string {
+  const headers = [
+    'Service',
+    'Duplicate Group',
+    'Link',
+    'Username',
+    'Password',
+    'Password Strength',
+    'Password Reused',
+    'Change Password Link',
+    'Delete Account Link',
+    'Security Settings Link',
+  ];
+
+  const rows = accounts.map(account => {
+    // Extract links from metadata (support both formats)
+    const changePasswordLink = account.metadata?.['change-password'] || account.metadata?.['changePassword'] || '';
+    const deleteAccountLink = account.metadata?.['delete-account'] || account.metadata?.['deleteAccount'] || '';
+    const securitySettingsLink = account.metadata?.['security-settings'] || account.metadata?.['securitySettings'] || '';
+
+    // Get duplicate group (from parameter or metadata._duplicateGroup)
+    const duplicateGroup = duplicateGroups?.get(account.id) ?? 
+      (account.metadata?._duplicateGroup ? parseInt(account.metadata._duplicateGroup) : null);
+    const duplicateGroupStr = duplicateGroup !== null && duplicateGroup !== undefined ? duplicateGroup.toString() : '';
+
+    // Format date
+    let dateStr = '';
+    if (account.discoveredAt) {
+      try {
+        const date = account.discoveredAt instanceof Date ? account.discoveredAt : new Date(account.discoveredAt);
+        if (!isNaN(date.getTime())) {
+          dateStr = date.toISOString();
+        }
+      } catch (e) {
+        // Invalid date, leave empty
+      }
+    }
+
+    return [
+      account.service || '',
+      duplicateGroupStr,
+      account.metadata?.link || '',
+      account.accountEmail || '',
+      account.metadata?.username || '',
+      account.metadata?.password || '', // Unencrypted password
+      account.metadata?.passwordStrength || '',
+      account.metadata?.passwordReused || '',
+      account.metadata?.passwordRecommendation || '',
+      changePasswordLink,
+      deleteAccountLink,
+      securitySettingsLink,
+      account.source || '',
+      dateStr,
+    ];
+  });
+
+  // Remove exactly duplicate rows (all fields are identical)
+  const uniqueRows = Array.from(
+    new Map(rows.map(row => [JSON.stringify(row), row])).values()
+  );
 
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => 
+    ...uniqueRows.map(row => 
       row.map(cell => {
         const cellStr = String(cell);
         // Escape quotes and wrap in quotes if contains comma, quote, or newline
@@ -58,31 +116,80 @@ export function downloadCSV(accounts: DiscoveredAccount[], filename: string = 'a
 
 /**
  * Export accounts to Excel format
+ * Includes columns: Service, Duplicate Group, Link, Username, Password, Password Strength, Password Reused,
+ * Change Password Link, Delete Account Link, Security Settings Link
+ * Removed: Account Email, Password Recommendation, Source, Date Discovered
+ * Removes exactly duplicate rows
  */
-export function exportToExcel(accounts: DiscoveredAccount[], filename: string = 'accounts-export.xlsx'): void {
-  // Prepare data for Excel
-  const worksheetData = [
-    ['Service', 'Account Email', 'Username', 'Password', 'Source'],
-    ...accounts.map(account => [
-      account.service,
-      account.accountEmail,
-      account.metadata?.username || '',
-      account.metadata?.password || '',
-      account.source,
-    ]),
+export function exportToExcel(
+  accounts: DiscoveredAccount[],
+  duplicateGroups?: Map<string, number | null>,
+  filename: string = 'accounts-export.xlsx'
+): void {
+  // Prepare headers
+  const headers = [
+    'Service',
+    'Duplicate Group',
+    'Link',
+    'Username',
+    'Password',
+    'Password Strength',
+    'Password Reused',
+    'Change Password Link',
+    'Delete Account Link',
+    'Security Settings Link',
   ];
+
+  // Prepare data rows
+  const rows = accounts.map(account => {
+    // Extract links from metadata (support both formats)
+    const changePasswordLink = account.metadata?.['change-password'] || account.metadata?.['changePassword'] || '';
+    const deleteAccountLink = account.metadata?.['delete-account'] || account.metadata?.['deleteAccount'] || '';
+    const securitySettingsLink = account.metadata?.['security-settings'] || account.metadata?.['securitySettings'] || '';
+
+    // Get duplicate group (from parameter or metadata._duplicateGroup)
+    const duplicateGroup = duplicateGroups?.get(account.id) ?? 
+      (account.metadata?._duplicateGroup ? parseInt(account.metadata._duplicateGroup) : null);
+    const duplicateGroupStr = duplicateGroup !== null && duplicateGroup !== undefined ? duplicateGroup.toString() : '';
+
+    return [
+      account.service || '',
+      duplicateGroupStr,
+      account.metadata?.link || '',
+      account.metadata?.username || '',
+      account.metadata?.password || '', // Unencrypted password
+      account.metadata?.passwordStrength || '',
+      account.metadata?.passwordReused || '',
+      changePasswordLink,
+      deleteAccountLink,
+      securitySettingsLink,
+    ];
+  });
+
+  // Remove exactly duplicate rows (all fields are identical)
+  const uniqueRows = Array.from(
+    new Map(rows.map(row => [JSON.stringify(row), row])).values()
+  );
+
+  // Combine headers and rows
+  const worksheetData = [headers, ...uniqueRows];
 
   // Create workbook and worksheet
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
-  // Set column widths
+  // Set column widths for better readability
   worksheet['!cols'] = [
-    { wch: 30 }, // Service
-    { wch: 35 }, // Account Email
-    { wch: 25 }, // Username
-    { wch: 25 }, // Password
-    { wch: 20 }, // Source
+    { wch: 28 }, // Service
+    { wch: 15 }, // Duplicate Group
+    { wch: 38 }, // Link
+    { wch: 23 }, // Username
+    { wch: 28 }, // Password
+    { wch: 18 }, // Password Strength
+    { wch: 18 }, // Password Reused
+    { wch: 38 }, // Change Password Link
+    { wch: 38 }, // Delete Account Link
+    { wch: 38 }, // Security Settings Link
   ];
 
   // Add worksheet to workbook

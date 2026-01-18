@@ -10,17 +10,10 @@
   ],
   "mac": {
     "category": "public.app-category.utilities",
-    "target": [
-      {
-        "target": "dmg",
-        "arch": ["arm64"]
-      }
-    ]
-  },
-  "dmg": {
-    "title": "${productName}-${version}",
+    "target": "dmg",
     "sign": false
   },
+  "dmg": {},
   "win": {
     "target": "nsis"
   },

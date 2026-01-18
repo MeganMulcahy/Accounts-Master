@@ -63,8 +63,8 @@
 
 .account-table {
   width: 100%;
-  min-width: 800px;
   border-collapse: collapse;
+  table-layout: fixed; /* Fixed layout for better control */
 }
 
 .account-table thead {
@@ -122,6 +122,80 @@
   white-space: nowrap;
 }
 
+/* Text truncation and wrapping */
+.account-table td {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Specific column text handling */
+.account-table td:nth-child(2) { /* Service */
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-table td:nth-child(4) { /* Username */
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-table td:nth-child(5) { /* Password */
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.link-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-link {
+  color: #1976d2;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.service-link:hover {
+  text-decoration: underline;
+}
+
+.multi-link-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.multi-link-tooltip {
+  font-size: 0.75rem;
+  color: #666;
+  cursor: help;
+  padding: 0.2rem 0.4rem;
+  background: #f0f0f0;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.multi-link-tooltip:hover {
+  background: #e0e0e0;
+}
+
+.text-muted {
+  color: #999;
+  font-style: italic;
+}
+
 .password-cell {
   font-family: monospace;
   font-size: 0.9rem;
@@ -144,19 +218,38 @@
   text-align: center;
 }
 
-.btn-delete {
+.btn-delete,
+.btn-link-discovery {
   background: none;
   border: none;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   font-size: 1rem;
-  color: #dc3545;
   transition: transform 0.2s;
+  margin: 0 0.25rem;
+}
+
+.btn-delete {
+  color: #dc3545;
 }
 
 .btn-delete:hover {
   transform: scale(1.2);
   color: #c82333;
+}
+
+.btn-link-discovery {
+  color: #1976d2;
+}
+
+.btn-link-discovery:hover {
+  transform: scale(1.2);
+  color: #1565c0;
+}
+
+.link-discovery-cell {
+  padding: 1rem !important;
+  background: #f9f9f9;
 }
 
 .btn-danger {
@@ -213,6 +306,88 @@
 
 .account-table-footer strong {
   color: #333;
+}
+
+/* Badge styles for password strength and reuse */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-strong {
+  background: #d4edda;
+  color: #155724;
+}
+
+.badge-moderate {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.badge-weak {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.badge-default {
+  background: #e9ecef;
+  color: #6c757d;
+}
+
+.badge-warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.badge-no {
+  background: #d4edda;
+  color: #155724;
+}
+
+/* Responsive column widths */
+.account-table th:nth-child(1),
+.account-table td:nth-child(1) {
+  width: 40px; /* Checkbox */
+}
+
+.account-table th:nth-child(2),
+.account-table td:nth-child(2) {
+  width: 18%; /* Service */
+}
+
+.account-table th:nth-child(3),
+.account-table td:nth-child(3) {
+  width: 20%; /* Link */
+}
+
+.account-table th:nth-child(4),
+.account-table td:nth-child(4) {
+  width: 13%; /* Username */
+}
+
+.account-table th:nth-child(5),
+.account-table td:nth-child(5) {
+  width: 14%; /* Password */
+}
+
+.account-table th:nth-child(6),
+.account-table td:nth-child(6) {
+  width: 14%; /* Password Strength */
+}
+
+.account-table th:nth-child(7),
+.account-table td:nth-child(7) {
+  width: 9%; /* Reused */
+}
+
+.account-table th:nth-child(8),
+.account-table td:nth-child(8) {
+  width: 12%; /* Actions */
 }
 
 @media (max-width: 768px) {

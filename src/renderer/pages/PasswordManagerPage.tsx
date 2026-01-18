@@ -16,15 +16,10 @@ interface PasswordManagerPageProps {
 
 export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageProps) {
   const { addAccounts } = useMasterList();
-  const [accountEmail, setAccountEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasteContent, setPasteContent] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-
-  const isValidEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
 
   /**
    * Import accounts from CSV or Excel file
@@ -100,7 +95,7 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
         
         if (parts.length >= 2) {
           const service = parts[0] || 'Unknown';
-          const email = parts[1] || accountEmail || 'unknown@example.com';
+          const email = parts[1] || ''; // Extract email from pasted content if available
 
           accounts.push({
             id: `pasted-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
@@ -116,9 +111,16 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
       }
 
       if (accounts.length > 0) {
-        addAccounts(accounts);
-        alert(`Successfully added ${accounts.length} accounts from pasted content!`);
-        setPasteContent('');
+        try {
+          addAccounts(accounts);
+          alert(`Successfully added ${accounts.length} accounts from pasted content!`);
+          setPasteContent('');
+        } catch (addError) {
+          const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+          console.error('Error adding accounts:', addError);
+          setError(`Failed to add accounts: ${addErrorMessage}`);
+          alert(`Content parsed but failed to add accounts: ${addErrorMessage}`);
+        }
       } else {
         setError('Could not parse any accounts from the pasted content');
       }
@@ -130,24 +132,26 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
   };
 
   const handleFileUpload = async (dataSource: DataSource) => {
-    if (!accountEmail || !isValidEmail(accountEmail)) {
-      setError('Please enter a valid account email address');
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
 
       if (window.electronAPI) {
-        const result = await window.electronAPI.selectAndParseFile(dataSource, accountEmail);
+        // Use empty string for accountEmail - it will be derived from the file
+        const result = await window.electronAPI.selectAndParseFile(dataSource, '');
         
         if (result.errors && result.errors.length > 0) {
           setError(result.errors.join('; '));
         } else {
-          addAccounts(result.accounts);
-          alert(`Successfully added ${result.accounts.length} accounts!`);
-          setAccountEmail('');
+          try {
+            addAccounts(result.accounts);
+            alert(`Successfully added ${result.accounts.length} accounts!`);
+          } catch (addError) {
+            const addErrorMessage = addError instanceof Error ? addError.message : 'Unknown error';
+            console.error('Error adding accounts:', addError);
+            setError(`Failed to add accounts: ${addErrorMessage}`);
+            alert(`File processed but failed to add accounts: ${addErrorMessage}`);
+          }
         }
       } else {
         setError('Electron API not available');
@@ -244,19 +248,6 @@ export function PasswordManagerPage({ onNavigate, source }: PasswordManagerPageP
       <div className="input-section">
         <h2>Import or Paste Accounts</h2>
         <p>You can paste: account, email associated with provider, email account associated with account found, username, password, etc.</p>
-
-        <div className="form-group">
-          <label htmlFor="account-email">Account Email (optional):</label>
-          <input
-            id="account-email"
-            type="email"
-            value={accountEmail}
-            onChange={(e) => setAccountEmail(e.target.value)}
-            placeholder="your.email@example.com"
-            disabled={isLoading}
-            className="form-input"
-          />
-        </div>
 
         <div className="upload-section">
           <h3>Option 1: Import Excel or CSV File</h3>
